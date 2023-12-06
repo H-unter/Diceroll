@@ -10,7 +10,7 @@ TRIAL_NUMBER = 50000
 def main():
     """Calculate the probability distribution of a dice roll prompt"""
     # prompt = input("Enter Dice: ")  # 2d6+1
-    prompt = "4d6+5"
+    prompt = "1d6+0"
     number_of_dice = int(prompt.split('d')[0])
     number_of_faces = int(prompt.split('d')[1].split('+')[0])
     modifier = int(prompt.split('+')[1])
