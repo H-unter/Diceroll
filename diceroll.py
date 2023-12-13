@@ -10,7 +10,7 @@ TRIAL_NUMBER = 50000
 def main():
     """Calculate the probability distribution of a dice roll prompt"""
     # prompt = input("Enter Dice: ")  # 2d6+1
-    prompt = "1d6+0"
+    prompt = "4d7+0"
     number_of_dice = int(prompt.split('d')[0])
     number_of_faces = int(prompt.split('d')[1].split('+')[0])
     modifier = int(prompt.split('+')[1])
@@ -23,6 +23,7 @@ def main():
         outcome_to_occurrences[i] = 0
 
     simulate_dicerolls(number_of_faces, number_of_dice, modifier, outcome_to_occurrences, TRIAL_NUMBER)
+    mean = calculate_mean(outcome_to_occurrences)
     plot_values(prompt, outcome_to_occurrences)
 
 
@@ -34,6 +35,17 @@ def simulate_dicerolls(number_of_faces, number_of_dice, modifier, outcome_to_occ
             result += (random.randint(1, number_of_faces))
         result += modifier
         outcome_to_occurrences[result] += 1
+
+
+def calculate_mean(outcome_to_occurrences):
+    """Calculate the mean dice outcome"""
+    outcomes = list(outcome_to_occurrences.keys())
+    probabilities = [value / TRIAL_NUMBER for value in outcome_to_occurrences.values()]
+    mean_value = 0
+    for i in range(len(outcomes)):
+        mean_value += probabilities[i] * outcomes[i]
+    mean_value = round(mean_value, 1)
+    return mean_value
 
 
 def plot_values(prompt, outcome_to_occurrences):
