@@ -23,8 +23,8 @@ def main():
         outcome_to_occurrences[i] = 0
 
     simulate_dicerolls(number_of_faces, number_of_dice, modifier, outcome_to_occurrences, TRIAL_NUMBER)
-    mean = calculate_mean(outcome_to_occurrences)
-    plot_values(prompt, outcome_to_occurrences)
+    mean_value = calculate_mean(outcome_to_occurrences) # change to "expected_outcome"?
+    plot_values(prompt, outcome_to_occurrences, mean_value)
 
 
 def simulate_dicerolls(number_of_faces, number_of_dice, modifier, outcome_to_occurrences, trial_number):
@@ -48,7 +48,7 @@ def calculate_mean(outcome_to_occurrences):
     return mean_value
 
 
-def plot_values(prompt, outcome_to_occurrences):
+def plot_values(prompt, outcome_to_occurrences, mean_value):
     """Plot values given an input dictionary"""
     x_values = list(outcome_to_occurrences.keys())
     y_values = [(value / TRIAL_NUMBER) * 100 for value in outcome_to_occurrences.values()]
@@ -56,6 +56,8 @@ def plot_values(prompt, outcome_to_occurrences):
     plt.xlabel('Sum')
     plt.ylabel('% occurrence')
     plt.title(f'Histogram of Results from {prompt}')
+    plt.axvline(x=mean_value, label=f"Mean = {mean_value}", color='r')
+    plt.legend()
     plt.xticks(x_values)  # setting x-ticks to match the sums
     plt.show()
 
