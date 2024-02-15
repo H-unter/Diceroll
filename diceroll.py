@@ -2,10 +2,9 @@
 Hunter Kruger-Ilingworth | Dice roll application
 """
 import random
-import matplotlib.pyplot as plt
+import matplotlib.pyplot
 import math
-
-TRIAL_NUMBER = 50000
+import convolution
 
 
 def main():
@@ -16,12 +15,9 @@ def main():
 
     minimum_outcome = number_of_dice + modifier
     maximum_outcome = number_of_dice * number_of_faces + modifier
-    outcome_to_occurrences = {outcome: 0 for outcome in
-                              range(number_of_dice + modifier, number_of_dice * number_of_faces + modifier + 1)}
-
-    simulate_dicerolls(number_of_faces, number_of_dice, modifier, outcome_to_occurrences, TRIAL_NUMBER)
-    mean_value = calculate_mean(outcome_to_occurrences)  # change to "expected_outcome"?
-    plot_values(dice_prompt, outcome_to_occurrences, mean_value)
+    outcome_to_probability = calculate_pdf(number_of_faces, number_of_dice, modifier)
+    mean_value = calculate_mean(outcome_to_probability)  # change to "expected_outcome"?
+    plot_values(dice_prompt, outcome_to_probability, mean_value)
 
 
 def parse_dice_prompt(dice_prompt):
@@ -31,21 +27,23 @@ def parse_dice_prompt(dice_prompt):
     return int(number_of_dice), int(number_of_faces), int(modifier)
 
 
-def simulate_dicerolls(number_of_faces, number_of_dice, modifier, outcome_to_occurrences, trial_number):
-    """Run TRIAL_NUMBER amount of trials on the given dice prompt"""
-    for i in range(trial_number):
-        result = 0
-        for j in range(number_of_dice):
-            result += (random.randint(1, number_of_faces))
-        result += modifier
-        outcome_to_occurrences[result] += 1
-    # TODO: continue running until either double the trial number has been run or the centre values are roughly symmetrical
+def calculate_pdf(number_of_faces, number_of_dice, modifier):
+    """Convolve the discrete probability densities https://www.youtube.com/watch?v=IaSGqQa5O-M&ab_channel=3Blue1Brown"""
+    die_face_probability = 1 / number_of_faces
+    single_die_range = range(1 + modifier, number_of_faces + modifier + 1)
+    total_outcome_range = range(number_of_dice + modifier, number_of_faces * number_of_dice + modifier + 1)
+    die_probability_distribution = {outcome: die_face_probability for outcome in single_die_range}
+    print(die_probability_distribution)
+    pdf = {outcome: die_face_probability if outcome in single_die_range else 0 for outcome in total_outcome_range}
+    for i in range(number_of_dice - 1):
+        pdf = convolution.convolve(pdf, die_probability_distribution)
+    return pdf
 
 
-def calculate_mean(outcome_to_occurrences):
+def calculate_mean(outcome_to_probability):
     """Calculate the mean dice outcome"""
-    outcomes = list(outcome_to_occurrences.keys())
-    probabilities = [value / TRIAL_NUMBER for value in outcome_to_occurrences.values()]
+    outcomes = list(outcome_to_probability.keys())
+    probabilities = list(outcome_to_probability.values())
     mean_value = 0
     for i in range(len(outcomes)):
         mean_value += probabilities[i] * outcomes[i]
@@ -56,20 +54,20 @@ def calculate_mean(outcome_to_occurrences):
 def plot_values(prompt, outcome_to_occurrences, mean_value):
     """Plot values given an input dictionary"""
     x_values = list(outcome_to_occurrences.keys())
-    y_values = [(value / TRIAL_NUMBER) * 100 for value in outcome_to_occurrences.values()]
+    y_values = list(outcome_to_occurrences.values())
     x_range = max(x_values) - min(x_values)
     x_increment = math.ceil(x_range / 25) if x_range >= 25 else 1
     print(f"x_increment = {x_increment}")
 
-    plt.bar(x_values, y_values, color='green')
-    plt.xlabel('Sum')
-    plt.ylabel('% Occurrence')
-    plt.title(f'Histogram of Results from {prompt}')
-    plt.axvline(x=mean_value, label=f"Mean = {mean_value}", color='r')
-    plt.legend()
-    plt.xticks(range(min(x_values), max(x_values) + 1, x_increment))
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.show()
+    matplotlib.pyplot.bar(x_values, y_values, color='green')
+    matplotlib.pyplot.xlabel('Sum')
+    matplotlib.pyplot.ylabel('% Occurrence')
+    matplotlib.pyplot.title(f'Histogram of Results from {prompt}')
+    matplotlib.pyplot.axvline(x=mean_value, label=f"Mean = {mean_value}", color='r')
+    matplotlib.pyplot.legend()
+    matplotlib.pyplot.xticks(range(min(x_values), max(x_values) + 1, x_increment))
+    matplotlib.pyplot.grid(axis='y', linestyle='--', alpha=0.7)
+    matplotlib.pyplot.show()
 
 
 if __name__ == "__main__":
