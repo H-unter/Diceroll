@@ -23,8 +23,8 @@ def convolve(p_x, p_y):
     die_1_outcomes = list(p_x.keys())
     die_2_outcomes = list(p_y.keys())
     #iterate over values of s
-    s_min = die_1_outcomes[0]+die_2_outcomes[0]
-    s_max = die_1_outcomes[-1]+die_2_outcomes[-1]
+    s_min = min(die_1_outcomes)+min(die_2_outcomes)
+    s_max = max(die_1_outcomes)+max(die_2_outcomes)
     probability_distribution = {outcome: 0 for outcome in range(s_min, s_max + 1)}
     for s in range(s_min, s_max + 1):
         for x in p_x.keys():
@@ -33,7 +33,7 @@ def convolve(p_x, p_y):
             except KeyError:
                 pass # out of range key means a probability of 0
         #print(f"p_x({x}) * p_y({y}) + \n")
-    print(probability_distribution)
+    #print(probability_distribution)
     return probability_distribution
 
 

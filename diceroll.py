@@ -33,10 +33,17 @@ def calculate_pdf(number_of_faces, number_of_dice, modifier):
     single_die_range = range(1 + modifier, number_of_faces + modifier + 1)
     total_outcome_range = range(number_of_dice + modifier, number_of_faces * number_of_dice + modifier + 1)
     die_probability_distribution = {outcome: die_face_probability for outcome in single_die_range}
-    print(die_probability_distribution)
-    pdf = {outcome: die_face_probability if outcome in single_die_range else 0 for outcome in total_outcome_range}
+    #print(die_probability_distribution)
+    pdf = {}
+    for i in range(0, number_of_faces * number_of_dice + modifier + 1):
+        if i in single_die_range:
+            pdf[i]=die_face_probability
+        else:
+            pdf[i]=0
+    #print(pdf)
     for i in range(number_of_dice - 1):
         pdf = convolution.convolve(pdf, die_probability_distribution)
+        #print(pdf)
     return pdf
 
 
@@ -57,7 +64,7 @@ def plot_values(prompt, outcome_to_occurrences, mean_value):
     y_values = list(outcome_to_occurrences.values())
     x_range = max(x_values) - min(x_values)
     x_increment = math.ceil(x_range / 25) if x_range >= 25 else 1
-    print(f"x_increment = {x_increment}")
+    #print(f"x_increment = {x_increment}")
 
     matplotlib.pyplot.bar(x_values, y_values, color='green')
     matplotlib.pyplot.xlabel('Sum')
