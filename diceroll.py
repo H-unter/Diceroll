@@ -9,11 +9,12 @@ import convolution
 def main():
     """Calculate the probability distribution of a die roll prompt"""
     # prompt = input("Enter Dice: ")  # 2d6+1
-    dice_prompt = "4d12+12"
+    dice_prompt = "3d10+0"
     number_of_dice, number_of_faces, modifier = parse_dice_prompt(dice_prompt)
 
     outcome_to_probability = calculate_pdf(number_of_faces, number_of_dice, modifier)
     mean_value = calculate_mean(outcome_to_probability)  # change to "expected_outcome"?
+    display_results(dice_prompt, outcome_to_probability)
     plot_values(dice_prompt, outcome_to_probability, mean_value)
 
 
@@ -50,6 +51,14 @@ def calculate_mean(outcome_to_probability):
         mean_value += probabilities[i] * outcomes[i]
     mean_value = round(mean_value, 1)
     return mean_value
+
+def display_results(prompt, outcome_to_probability):
+    """Display the results of the dice roll"""
+    for outcome, probability in outcome_to_probability.items():
+        max_outcome = max(outcome_to_probability.keys())
+        cumulative_probability = sum([p for x, p in outcome_to_probability.items() if x <= outcome])
+        cumulative_probability_percentage = cumulative_probability * 100
+        print(f"P(0<x<{outcome}) = {cumulative_probability_percentage:.2f}%;        P({outcome}<x<{max_outcome}) = {100 - cumulative_probability_percentage:.2f}%")
 
 
 def plot_values(prompt, outcome_to_occurrences, mean_value):
