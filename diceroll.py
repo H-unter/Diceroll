@@ -3,18 +3,19 @@ Hunter Kruger-Ilingworth | Dice roll application
 """
 import matplotlib.pyplot
 import math
-import convolution
+import convolution # custom module for convolution of probability distributions
 
+is_results_displayed = False
 
 def main():
     """Calculate the probability distribution of a die roll prompt"""
     # prompt = input("Enter Dice: ")  # 2d6+1
-    dice_prompt = "3d10+0"
+    dice_prompt = "20d10+3"
     number_of_dice, number_of_faces, modifier = parse_dice_prompt(dice_prompt)
-
     outcome_to_probability = calculate_pdf(number_of_faces, number_of_dice, modifier)
     mean_value = calculate_mean(outcome_to_probability)  # change to "expected_outcome"?
-    display_results(dice_prompt, outcome_to_probability)
+    if is_results_displayed:
+        display_results(dice_prompt, outcome_to_probability)
     plot_values(dice_prompt, outcome_to_probability, mean_value)
 
 
