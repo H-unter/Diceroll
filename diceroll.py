@@ -48,24 +48,30 @@ def calculate_cdf(outcome_to_probability):
             outcome_to_cumulative_probability[outcome] = cumulative_probability
         return outcome_to_cumulative_probability
 
-
 class dice_roll_toolbox:
-    def __init__(self, dice_prompt="1d10+3", is_results_displayed=True):
+    def __init__(self, dice_prompt="1d10+3"):
         self.dice_prompt = dice_prompt
         self.number_of_dice, self.number_of_faces, self.modifier = parse_dice_prompt(dice_prompt)
         self.outcome_to_probability = calculate_pdf(self.number_of_faces, self.number_of_dice, self.modifier)
-        self.mean_value = calculate_mean(self.outcome_to_probability)
+        
+        self.min_outcome = min(self.outcome_to_probability.keys())
+        self.max_outcome = max(self.outcome_to_probability.keys())
+        self.mean_outcome = calculate_mean(self.outcome_to_probability)
         self.outcome_to_cumulative_probability = calculate_cdf(self.outcome_to_probability)
 
-    def output_numerical_results(self):
-        """Display all the numerical insights of the dice roll"""
-        max_outcome = max(self.outcome_to_cumulative_probability.keys())
-        min_outcome = min(self.outcome_to_cumulative_probability.keys())
-        
+    def output_all_numerical_results(self):
+        """Display all the numerical insights of the dice roll"""     
         for outcome, probability in self.outcome_to_cumulative_probability.items():
             cumulative_probability_percentage = probability * 100
-            print(f"P({min_outcome}<=x<={outcome}) = {cumulative_probability_percentage:.3f}%;        P({outcome}<=x<={max_outcome}) = {100 - cumulative_probability_percentage:.3f}%")
+            print(f"P({self.min_outcome} <= x <= {outcome}) = {cumulative_probability_percentage:.3f}%;        P({outcome} <= x <= {self.max_outcome}) = {100 - cumulative_probability_percentage:.3f}%")
 
+    def output_select_numerical_results(self, y):
+        """Display all the numerical insights of the dice roll"""
+        try:
+           print(f"P({self.min_outcome} <= x <= {y}) = {self.outcome_to_cumulative_probability[y] * 100:.3f}%;        P({y} <= x <= {self.max_outcome}) = {(1 - self.outcome_to_cumulative_probability[y]) * 100:.3f}%")
+        except KeyError:
+           print("The value of y is out of range, i should write code to handle this")
+        
     def plot_values(self):
         """Plot values given an input dictionary"""
         x_values = list(self.outcome_to_probability.keys())
@@ -79,14 +85,15 @@ class dice_roll_toolbox:
         matplotlib.pyplot.xlabel('Sum')
         matplotlib.pyplot.ylabel('% Occurrence')
         matplotlib.pyplot.title(f'Histogram of Results from {self.dice_prompt}')
-        matplotlib.pyplot.axvline(x=self.mean_value, label=f"Mean = {self.mean_value}", color='r')
+        matplotlib.pyplot.axvline(x=self.mean_outcome, label=f"Mean = {self.mean_outcome}", color='r')
         matplotlib.pyplot.legend()
         matplotlib.pyplot.xticks(range(min(x_values), max(x_values) + 1, x_tick_increment))
         matplotlib.pyplot.grid(axis='y', linestyle='--', alpha=0.7)
         matplotlib.pyplot.show()
 
 if __name__ == "__main__":
-    roller = dice_roll_toolbox(dice_prompt="2d6+1", is_results_displayed=True)
-    roller.output_numerical_results()
-    roller.plot_values()
+    dice_roll = dice_roll_toolbox("2d6+1")
+    dice_roll.output_all_numerical_results()
+    dice_roll.output_select_numerical_results(10)
+    dice_roll.plot_values()
 
