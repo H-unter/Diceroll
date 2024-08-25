@@ -5,6 +5,7 @@ import matplotlib.pyplot
 import math
 import time
 import convolution # custom module for convolution of probability distributions
+import numpy 
 
 is_results_displayed = True
 
@@ -81,21 +82,28 @@ class dice_roll_toolbox:
         x_tick_increment = math.ceil(x_range / 25) if x_range >= 25 else 1
         print(f"There are {len(x_values)} bars on this histogram")
 
+        # Calculate the bin edges and bin centers
+        bin_edges = numpy.arange(min(x_values) - 0.5, max(x_values) + 1.5, 1)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
         matplotlib.pyplot.figure(figsize=(14, 5))
-        matplotlib.pyplot.hist(x_values, bins=len(x_values), weights=y_values, color='#D64650', edgecolor='black')
+        matplotlib.pyplot.hist(x_values, bins=bin_edges, weights=y_values, color='#D64650', edgecolor='black')
         matplotlib.pyplot.xlabel('Sum')
         matplotlib.pyplot.ylabel('% Occurrence')
         matplotlib.pyplot.title(f'Histogram of Results from {self.dice_prompt}')
         matplotlib.pyplot.axvline(x=self.mean_outcome, label=f"Mean = {self.mean_outcome}", color='r')
         matplotlib.pyplot.legend()
-        matplotlib.pyplot.xticks(range(min(x_values), max(x_values) + 1, x_tick_increment))
+
+        # Set x-ticks to the bin centers
+        matplotlib.pyplot.xticks(bin_centers[::x_tick_increment], labels=[str(int(center)) for center in bin_centers[::x_tick_increment]])
+        
         matplotlib.pyplot.grid(axis='y', linestyle='--', alpha=0.7)
         matplotlib.pyplot.show()
 
 if __name__ == "__main__":
     # start timer for performance testing
     start_time = time.time()
-    dice_roll = dice_roll_toolbox("100d6+1")
+    dice_roll = dice_roll_toolbox("2d6+1")
     #dice_roll.output_all_numerical_results()
     #dice_roll.output_select_numerical_results(10)
     end_time = time.time() # 2.35599946975708 seconds
