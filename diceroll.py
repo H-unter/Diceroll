@@ -3,6 +3,7 @@ Hunter Kruger-Ilingworth | Dice roll application
 """
 import matplotlib.pyplot
 import math
+import time
 import convolution # custom module for convolution of probability distributions
 
 is_results_displayed = True
@@ -92,8 +93,14 @@ class dice_roll_toolbox:
         matplotlib.pyplot.show()
 
 if __name__ == "__main__":
-    dice_roll = dice_roll_toolbox("2d6+1")
-    dice_roll.output_all_numerical_results()
-    dice_roll.output_select_numerical_results(10)
+    # start timer for performance testing
+    start_time = time.time()
+    dice_roll = dice_roll_toolbox("100d6+1")
+    #dice_roll.output_all_numerical_results()
+    #dice_roll.output_select_numerical_results(10)
+    end_time = time.time() # 2.35599946975708 seconds
+    print(f"Execution time: {end_time - start_time} seconds")
     dice_roll.plot_values()
+    
+    
 

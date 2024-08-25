@@ -19,21 +19,19 @@ p_y = {
 def convolve(p_x, p_y):
     """Convolve the discrete probability densities https://www.youtube.com/watch?v=IaSGqQa5O-M&ab_channel=3Blue1Brown"""
 
-    # define the outcomes for each die
-    die_1_outcomes = list(p_x.keys())
-    die_2_outcomes = list(p_y.keys())
-    #iterate over values of s
-    s_min = min(die_1_outcomes)+min(die_2_outcomes)
-    s_max = max(die_1_outcomes)+max(die_2_outcomes)
-    probability_distribution = {outcome: 0 for outcome in range(s_min, s_max + 1)}
-    for s in range(s_min, s_max + 1):
-        for x in p_x.keys():
-            try:
-                probability_distribution[s] += p_x[x]*p_y[s-x]
-            except KeyError:
-                pass # out of range key means a probability of 0
-        #print(f"p_x({x}) * p_y({y}) + \n")
-    #print(probability_distribution)
+    # Initialize the probability distribution dictionary.
+    probability_distribution = {}
+
+    # Iterate over the possible outcomes of the first probability distribution.
+    for x, p_x_val in p_x.items():
+        # Iterate over the possible outcomes of the second probability distribution.
+        for y, p_y_val in p_y.items():
+            s = x + y
+            if s in probability_distribution:
+                probability_distribution[s] += p_x_val * p_y_val
+            else:
+                probability_distribution[s] = p_x_val * p_y_val
+
     return probability_distribution
 
 
