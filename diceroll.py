@@ -10,26 +10,47 @@ import numpy
 is_results_displayed = True
 
 def parse_dice_prompt(dice_prompt):
-    """Parse dice prompt and return the 3 characteristic parameters XdY+Z"""
-    number_of_dice, remainder = dice_prompt.split('d')
-    number_of_faces, modifier = remainder.split('+')
-    return int(number_of_dice), int(number_of_faces), int(modifier)
+    """Parse dice prompt and return an object with dice rolls and total offset. eg 2d4+3+4d7+8"""
+    dice_prompt = dice_prompt.replace('-', '+-')  # Handle negative offsets
+    dice_roll_terms = dice_prompt.split('+')
+    
+    dice_rolls = []
+    total_offset = 0
 
-def calculate_pdf(number_of_faces, number_of_dice, modifier):
+    for dice_roll_term in dice_roll_terms:
+        is_diceroll_term = 'd' in dice_roll_term
+        if is_diceroll_term: # dice roll, eg 4d5
+            num_dice, num_faces = map(int, dice_roll_term.split('d'))
+            dice_rolls.append((num_dice, num_faces))
+        else:
+            total_offset += int(dice_roll_term)
+    return dice_rolls, total_offset
+
+def calculate_pdf(dice_rolls, modifier):
         """Convolve the discrete probability densities https://www.youtube.com/watch?v=IaSGqQa5O-M&ab_channel=3Blue1Brown"""
-        die_face_probability = 1 / number_of_faces
-        single_die_range = range(1 + modifier, number_of_faces + modifier + 1)
-        die_probability_distribution = {outcome: die_face_probability for outcome in single_die_range}
-
         pdf = {}
-        for i in range(1 + modifier, number_of_faces * number_of_dice + modifier + 1):
-            if i in single_die_range:
-                pdf[i] = die_face_probability
+        # Calculate the probability distribution for each dice roll
+        max_total_outcome = sum([num_faces*num_dice for (num_dice, num_faces) in dice_rolls]) + modifier
+        total_outcome_range = range(1, max_total_outcome + 1)
+        pdf = {outcome: 0 for outcome in total_outcome_range}
+        is_pdf_initialised = False
+
+        for (number_of_dice, number_of_faces) in dice_rolls:
+            die_face_probability = 1 / number_of_faces
+            single_die_range = range(1, number_of_faces + 1)
+            single_die_pdf = {outcome: die_face_probability for outcome in single_die_range}
+
+            if not is_pdf_initialised:
+                pdf = single_die_pdf
+                is_pdf_initialised = True
+                convolution_count = number_of_dice - 1
             else:
-                pdf[i] = 0
-        for i in range(number_of_dice - 1):
-            pdf = convolution.convolve(pdf, die_probability_distribution)
-        return {key: value for key, value in pdf.items() if value != 0}
+                convolution_count = number_of_dice
+
+            for outcome_index in range(convolution_count):
+                pdf = convolution.convolve(pdf, single_die_pdf)
+
+        return {key + modifier: value for key, value in pdf.items() if value != 0} # shift the pdf by the modifier
 
 def calculate_mean(outcome_to_probability):
     """Calculate the mean dice outcome"""
@@ -53,8 +74,8 @@ def calculate_cdf(outcome_to_probability):
 class dice_roll_toolbox:
     def __init__(self, dice_prompt="1d10+3"):
         self.dice_prompt = dice_prompt
-        self.number_of_dice, self.number_of_faces, self.modifier = parse_dice_prompt(dice_prompt)
-        self.outcome_to_probability = calculate_pdf(self.number_of_faces, self.number_of_dice, self.modifier)
+        self.dice_rolls, self.modifier = parse_dice_prompt(dice_prompt)
+        self.outcome_to_probability = calculate_pdf(self.dice_rolls, self.modifier)
         
         self.min_outcome = min(self.outcome_to_probability.keys())
         self.max_outcome = max(self.outcome_to_probability.keys())
@@ -103,7 +124,7 @@ class dice_roll_toolbox:
 if __name__ == "__main__":
     # start timer for performance testing
     start_time = time.time()
-    dice_roll = dice_roll_toolbox("2d6+1")
+    dice_roll = dice_roll_toolbox("2d6+4d10+1")
     #dice_roll.output_all_numerical_results()
     #dice_roll.output_select_numerical_results(10)
     end_time = time.time() 
