@@ -1,7 +1,7 @@
 """
 Hunter Kruger-Ilingworth | Dice roll application
 """
-import matplotlib.pyplot
+import matplotlib.pyplot as plt
 import math
 import time
 import convolution # custom module for convolution of probability distributions
@@ -73,14 +73,26 @@ def calculate_cdf(outcome_to_probability):
 
 class dice_roll_toolbox:
     def __init__(self, dice_prompt="1d10+3"):
-        self.dice_prompt = dice_prompt
-        self.dice_rolls, self.modifier = parse_dice_prompt(dice_prompt)
-        self.outcome_to_probability = calculate_pdf(self.dice_rolls, self.modifier)
-        
-        self.min_outcome = min(self.outcome_to_probability.keys())
-        self.max_outcome = max(self.outcome_to_probability.keys())
-        self.mean_outcome = calculate_mean(self.outcome_to_probability)
-        self.outcome_to_cumulative_probability = calculate_cdf(self.outcome_to_probability)
+        # Always use dice_prompts, check if it's a single string or a dictionary
+        if isinstance(dice_prompt, dict):
+            self.is_dict_input = True
+            self.dice_prompts = dice_prompt
+            # For each level, calculate its PDF and store the result
+            self.outcome_to_probability_dict = {
+                level: calculate_pdf(*parse_dice_prompt(dice_prompt_string))  # unpack the output of parse_dice_prompt
+                for level, dice_prompt_string in dice_prompt.items()
+            }
+        else:
+            self.is_dict_input = False
+            self.dice_prompts = {1: dice_prompt}  # Single dice prompt treated as level 1
+            self.outcome_to_probability_dict = {
+                1: calculate_pdf(*parse_dice_prompt(dice_prompt))  # unpack the output of parse_dice_prompt
+            }
+
+        # After initializing, calculate min/max outcomes and mean
+        self.min_outcome = min(min(pdf.keys()) for pdf in self.outcome_to_probability_dict.values())
+        self.max_outcome = max(max(pdf.keys()) for pdf in self.outcome_to_probability_dict.values())
+        self.mean_outcome = {level: calculate_mean(pdf) for level, pdf in self.outcome_to_probability_dict.items()}
 
     def output_all_numerical_results(self):
         """Display all the numerical insights of the dice roll"""     
@@ -89,47 +101,87 @@ class dice_roll_toolbox:
             print(f"P({self.min_outcome} <= x <= {outcome}) = {cumulative_probability_percentage:.3f}%;        P({outcome} <= x <= {self.max_outcome}) = {100 - cumulative_probability_percentage:.3f}%")
 
     def output_select_numerical_results(self, y):
-        """Display all the numerical insights of the dice roll"""
+        """Display select numerical insights of the dice roll"""
         try:
            print(f"P({self.min_outcome} <= x <= {y}) = {self.outcome_to_cumulative_probability[y] * 100:.3f}%;        P({y} <= x <= {self.max_outcome}) = {(1 - self.outcome_to_cumulative_probability[y]) * 100:.3f}%")
         except KeyError:
            print("The value of y is out of range, i should write code to handle this")
-        
-    def plot_values(self):
-        """Plot values given an input dictionary"""
-        x_values = list(self.outcome_to_probability.keys())
-        y_values = list(self.outcome_to_probability.values())
-        x_range = max(x_values) - min(x_values)
-        x_tick_increment = math.ceil(x_range / 25) if x_range >= 25 else 1
-        print(f"There are {len(x_values)} bars on this histogram")
 
-        # Calculate the bin edges and bin centers
-        bin_edges = numpy.arange(min(x_values) - 0.5, max(x_values) + 1.5, 1)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    def plot_values(self, title=None, upgrade="Level"):
+        """Plot values given an input dictionary with an optional title, and upgrade parameter, which means is the spell upgrading with player level or spell slot level"""
+        fig, ax = plt.subplots(figsize=(6, 4))
+        plt.tight_layout()
 
-        matplotlib.pyplot.figure(figsize=(14, 5))
-        matplotlib.pyplot.hist(x_values, bins=bin_edges, weights=y_values, color='#D64650', edgecolor='black')
-        matplotlib.pyplot.xlabel('Sum')
-        matplotlib.pyplot.ylabel('% Occurrence')
-        matplotlib.pyplot.title(f'Histogram of Results from {self.dice_prompt}')
-        matplotlib.pyplot.axvline(x=self.mean_outcome, label=f"Mean = {self.mean_outcome}", color='r')
-        matplotlib.pyplot.legend()
+        if title:
+            ax.set_title(title)  # Set custom title if provided
 
-        # Set x-ticks to the bin centers
-        matplotlib.pyplot.xticks(bin_centers[::x_tick_increment], labels=[str(int(center)) for center in bin_centers[::x_tick_increment]])
-        
-        matplotlib.pyplot.grid(axis='y', linestyle='--', alpha=0.7)
-        matplotlib.pyplot.show()
+        # Get the unique levels from the dictionary keys
+        levels = list(self.outcome_to_probability_dict.keys())
+        num_levels = len(levels)  # Get the number of unique levels
+
+        # Create a colormap
+        colormap = plt.cm.magma
+
+        if self.is_dict_input:
+            # Plot multiple distributions if input is a dictionary
+            for level in levels:
+                outcome_to_probability = self.outcome_to_probability_dict[level]
+                max_outcome = max(outcome_to_probability.keys())
+                min_outcome = min(outcome_to_probability.keys())
+                x_values = list(outcome_to_probability.keys())
+                y_values = list(outcome_to_probability.values())
+                bin_edges = numpy.arange(min(x_values) - 0.5, max(x_values) + 1.5, 1)
+                bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+                # Normalize the level index to the range of the colormap
+                color = colormap(levels.index(level) / (num_levels - 1))  # Normalize for gaps in levels
+                color = (*color[:3], 0.4) # Add alpha channel to color
+                # Plot histogram with Plasma colormap
+                bars = ax.hist(x_values, bins=bin_edges, weights=y_values, label=f"Level {level} \u2208[{min_outcome}, {max_outcome}]; \u03BC={self.mean_outcome[level]}", edgecolor='black', color=color)
+
+                # Plot the mean line using the same color as the bars
+                ax.axvline(x=self.mean_outcome[level], color=color, linestyle='--')
+
+            ax.legend(title=f"{upgrade}", loc='best', frameon=False)
+        else:
+            # Plot a single distribution
+            level = list(self.dice_prompts.keys())[0]
+            outcome_to_probability = self.outcome_to_probability_dict[level]
+            x_values = list(outcome_to_probability.keys())
+            y_values = list(outcome_to_probability.values())
+            bin_edges = numpy.arange(min(x_values) - 0.5, max(x_values) + 1.5, 1)
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+            # Use the Plasma colormap for a single distribution
+            color = colormap(0.5)  # Middle of the colormap for a single plot
+
+            # Plot histogram with Plasma colormap
+            bars = ax.hist(x_values, bins=bin_edges, weights=y_values, color=color, edgecolor='black', alpha=0.5)
+
+            # Plot the mean line using the same color as the bars
+            ax.axvline(x=self.mean_outcome[level], label=f"Mean = {self.mean_outcome[level]}", color=color, linestyle='--')
+            ax.legend()
+
+        ax.set_xlabel('Sum')
+        ax.set_ylabel('% Occurrence')
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+
+
+
 
 if __name__ == "__main__":
-    # start timer for performance testing
-    start_time = time.time()
-    dice_roll = dice_roll_toolbox("2d6+4d10+1")
-    #dice_roll.output_all_numerical_results()
-    #dice_roll.output_select_numerical_results(10)
-    end_time = time.time() 
-    print(f"Execution time: {end_time - start_time} seconds")
-    dice_roll.plot_values()
+
+    inflict_wounds_spell_slot_level_to_dice_prompt = {
+        1: "3d10",
+        2: "4d10",
+        3: "5d10",
+        4: "6d10"}
+    inflict_wounds = dice_roll_toolbox(inflict_wounds_spell_slot_level_to_dice_prompt)
+    inflict_wounds.plot_values(title=f"Inflict Wounds Damage Distribution", upgrade="Spell Slot Level") # Slot
+    
+
+
+    plt.show()
     
     
 
