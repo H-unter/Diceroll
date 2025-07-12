@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 /.idea
 desktop.ini
+/spell_plots

@@ -6,17 +6,24 @@ import matplotlib.ticker as mtick
 MAX_SPELL_LEVEL = 9
 
 class Spell:
-    def __init__(self, name, starting_level, starting_damage_diceroll, damage_increment_diceroll=None, num_levels_per_damage_increase=None, is_halved_on_miss=False):
+    def __init__(self, name, starting_level=None, starting_damage_diceroll=None, damage_increment_diceroll=None, num_levels_per_damage_increase=None, hardcoded_level_to_diceroll=None, is_saving_throw=False):
         self.name = name
-        self.starting_level = starting_level
-        if starting_damage_diceroll is None:
-            raise ValueError(f"No value Specified for starting damage diceroll")
         self.starting_damage_diceroll = self.coerce_to_dice_prompt_type(starting_damage_diceroll)
         self.damage_increase_per_level = self.coerce_to_dice_prompt_type(damage_increment_diceroll)
-        self.num_levels_per_damage_increase = num_levels_per_damage_increase
-        self.is_halved_on_miss = is_halved_on_miss
-        self.level_increases = self.get_level_increases()
-        self.is_halved_on_miss = is_halved_on_miss
+        self.is_hardcoded = hardcoded_level_to_diceroll is not None
+        if not self.is_hardcoded and starting_damage_diceroll is None:
+            raise ValueError(f"No value Specified for starting damage diceroll")
+        if self.is_hardcoded and (starting_damage_diceroll is not None or damage_increment_diceroll is not None or num_levels_per_damage_increase is not None):
+            raise ValueError("Cannot specify both hardcoded_level_to_diceroll and (starting_damage_diceroll, damage_increment_diceroll, or num_levels_per_damage_increase)")
+        if self.is_hardcoded:
+            self.level_to_diceroll = self.calculate_level_to_diceroll(hardcoded_level_to_diceroll)
+            self.level_increases = self.get_level_increases()
+        if not self.is_hardcoded:
+            self.starting_level = starting_level
+            self.num_levels_per_damage_increase = num_levels_per_damage_increase
+            self.level_to_diceroll = self.calculate_level_to_diceroll()
+            self.level_increases = self.get_level_increases()
+        self.is_halved_on_miss = is_saving_throw
 
     def coerce_to_dice_prompt_type(self, value):
         if value is None:
@@ -28,37 +35,83 @@ class Spell:
         else:
             raise ValueError("Value must be a string or a DicePrompt instance.")
         
+    def calculate_level_to_diceroll(self, hardcoded_level_to_diceroll=None):
+        """Calculate the level to diceroll mapping based on starting damage and increments."""
+
+        if self.is_hardcoded:
+            level_to_diceroll = {level: self.coerce_to_dice_prompt_type(dice_roll) for level, dice_roll in hardcoded_level_to_diceroll.items()}
+            is_valid = all(isinstance(level, int) for level in level_to_diceroll.keys()) and all(isinstance(dice_roll, DicePrompt) for dice_roll in level_to_diceroll.values())
+            if not is_valid:
+                raise ValueError("Invalid values passed into hardcoded_level_to_diceroll")
+            return level_to_diceroll
+        elif not self.is_hardcoded and (self.starting_damage_diceroll is None or self.damage_increase_per_level is None or self.num_levels_per_damage_increase is None):
+            raise ValueError("Cannot calculate level to diceroll mapping without starting damage, damage increment, and number of levels per increase. Use hardcoded_level_to_diceroll instead.")
+        elif not self.is_hardcoded:
+            level_to_diceroll = {}
+            for level in range(self.starting_level, MAX_SPELL_LEVEL + 1):
+                if level == self.starting_level:
+                    level_to_diceroll[level] = self.starting_damage_diceroll
+                else:
+                    num_damage_increases = (level - self.starting_level) // self.num_levels_per_damage_increase
+                    if num_damage_increases < 1:
+                        level_to_diceroll[level] = self.starting_damage_diceroll
+                    else:
+                        new_damage_roll = self.starting_damage_diceroll + num_damage_increases * self.damage_increase_per_level
+                        level_to_diceroll[level] = new_damage_roll
+            return level_to_diceroll
+        
     def get_damage_roll(self, level, is_critical_hit=False, is_miss=False):
         """For a given level, return the damage roll"""
-        if self.damage_increase_per_level is None:        
-            return self.starting_damage_diceroll if not is_critical_hit else self.starting_damage_diceroll * 2
-        if level < self.starting_level:
-            raise ValueError(f"Level cannot be less than the starting level of the spell ({self.starting_level}).")
         if (is_critical_hit and is_miss):
             raise ValueError("A spell cannot be both a critical hit and a miss at the same time.")
-        
+
+        if self.is_hardcoded:
+            if level not in self.level_to_diceroll:
+                # use highest available level less than or equal to `level`
+                available_levels = [l for l in self.level_to_diceroll.keys() if l <= level]
+                if not available_levels:
+                    raise ValueError(f"No available hardcoded damage for level {level}")
+                level = max(available_levels)
+            base = self.level_to_diceroll[level]
+            if is_critical_hit:
+                return base * 2
+            return base
+
+        # default case: not hardcoded
+        if level < self.starting_level:
+            raise ValueError(f"Level cannot be less than the starting level of the spell ({self.starting_level}).")
+
         num_damage_increases = (level - self.starting_level) // self.num_levels_per_damage_increase
         if num_damage_increases < 1:
             return self.starting_damage_diceroll
-        new_damage_roll = self.starting_damage_diceroll + num_damage_increases*self.damage_increase_per_level
 
-        if is_critical_hit:
-            return new_damage_roll * 2
-        else:
-            return new_damage_roll
+        new_damage_roll = self.starting_damage_diceroll + num_damage_increases * self.damage_increase_per_level
+        return new_damage_roll * 2 if is_critical_hit else new_damage_roll
 
+        
     def get_level_increases(self):
         """
         return a list of levels where the spell sees an increased damage roll. 
         eg for a spell that starts at level 1 with a damage roll of 2d6, and increases to 3d6 at level 5, this would return [1, 5]
         """
-        level_increases = [self.starting_level]
-        current_level = self.starting_level + 1
-        while current_level <= MAX_SPELL_LEVEL:
-            if self.get_damage_roll(current_level).mean() > self.get_damage_roll(current_level - 1).mean():
-                level_increases.append(current_level)
-            current_level += 1
-        return level_increases
+        if self.is_hardcoded:
+            starting_level = min(self.level_to_diceroll.keys())
+            level_increases = [starting_level]
+            previous_diceroll = self.level_to_diceroll[starting_level]
+            for level, diceroll in self.level_to_diceroll.items():
+                if diceroll != previous_diceroll:
+                    level_increases.append(level)
+                    previous_diceroll = diceroll
+            return level_increases
+        else:
+            level_increases = [self.starting_level]
+            previous_diceroll = self.starting_damage_diceroll
+            for level in range(self.starting_level + 1, MAX_SPELL_LEVEL + 1):
+                current_diceroll = self.get_damage_roll(level)
+                if current_diceroll != previous_diceroll:
+                    level_increases.append(level)
+                    previous_diceroll = current_diceroll
+            return level_increases
 
     def get_damage_distribution(self, level, enemy_ac, player_modifier):
         """ determines the probability of each possible damage outcome, inclusive of misses and critical hits"""
@@ -104,7 +157,7 @@ class Spell:
 
         return pdf
 
-    def plot_damage(self, max_level=MAX_SPELL_LEVEL, x_tick_interval=None, colormap = plt.cm.magma):
+    def plot_damage(self, max_level=MAX_SPELL_LEVEL, x_tick_interval=None, colormap = plt.cm.plasma, show=False):
         level_to_damage_roll = {level: self.get_damage_roll(level) for level in self.level_increases if level <= max_level}
 
         fig = plt.figure(figsize=(7, 5))  # Adjusted figure size
@@ -128,15 +181,50 @@ class Spell:
 
             mean_value = dice_roll.mean()
             label = rf"{level} $\in$ [{min(x_values)}, {max(x_values)}]; $\mu$={mean_value}"
+            plot_label = r"$\mu_{" + str(level) + "}$" 
             ax_plot.hist(x_values, bins=bin_edges, weights=y_values, label=label, color=color, edgecolor='black', alpha=0.4, zorder=100)
-            ax_plot.axvline(x=mean_value, color='black', linestyle='--')
+            ax_plot.axvline(x=mean_value, color='black', linestyle='--', ymax=0.97)
+
+
+            ax_plot.text(
+                        mean_value,
+                        ax_plot.get_ylim()[1] * 0.99,
+                        f"{mean_value:.1f}".rstrip('0').rstrip('.'),
+                        ha='center',
+                        va='bottom',
+                        fontsize=9,
+                        color='black',
+                        bbox=dict(
+                            boxstyle='round,pad=0.15',
+                            facecolor=color,
+                            edgecolor='none',
+                            alpha=0.3  # Adjust transparency to your liking
+                        )
+                    )
+            
+            ax_plot.text(
+                        mean_value,
+                        ax_plot.get_ylim()[1] * 1.045,
+                        plot_label,
+                        ha='center',
+                        va='bottom',
+                        fontsize=9,
+                        color='black',
+                        bbox=dict(
+                            boxstyle='round,pad=0.15',
+                            facecolor=color,
+                            edgecolor='none',
+                            alpha=0.3  # Adjust transparency to your liking
+                        )
+                    )
+
 
     
         ax_plot.yaxis.set_major_formatter(mtick.PercentFormatter())  # Converts axis labels to percentages
         ax_plot.spines["top"].set_visible(False)    
         ax_plot.spines["right"].set_visible(False)  
 
-        ax_plot.legend(loc='lower right', frameon=False, bbox_to_anchor=(1, 1), fontsize=11)
+        ax_plot.legend(loc='lower right', frameon=False, bbox_to_anchor=(1.1, 0.5), fontsize=11)
 
         ax_title.set_xticks([])
         ax_title.set_yticks([])
@@ -146,9 +234,9 @@ class Spell:
         ax_title.spines['left'].set_visible(False)
 
         # **Axis Labels & Grid**
-        ax_plot.set_xlabel('Sum')
+        ax_plot.set_xlabel('Damage Outcome')
         ax_plot.set_ylabel('% Occurrence')
-        ax_plot.grid(axis='y', linestyle='--', alpha=0.7)
+        # ax_plot.grid(axis='y', linestyle='--', alpha=0.7)
 
         if x_tick_interval is not None:
             # Compute min and max x-values from all plotted distributions
@@ -156,40 +244,31 @@ class Spell:
             min_x = min(all_x_values)
             max_x = max(all_x_values)
             ax_plot.set_xticks(np.arange(x_tick_interval * round(float(min_x) / x_tick_interval), max_x + 1, x_tick_interval))
-
-        plt.show()
+        if show:
+            plt.show()
 
 if __name__ == '__main__':
 
     # Spell save DC = 8 + your proficiency bonus + your Wisdom modifier 
     # Spell attack modifier = your proficiency bonus + your Wisdom modifier
 
-    spell = Spell(name="fireball", 
-                   starting_level=1, 
-                   starting_damage_diceroll="2d6", 
-                   damage_increment_diceroll=None, 
-                   num_levels_per_damage_increase=None, 
-                   is_halved_on_miss=True)
-    print(f"level 1 -> {spell.get_damage_roll(1)}")
-    print(f"level 2 -> {spell.get_damage_roll(2)}")
-    print(f"level 3 -> {spell.get_damage_roll(3)}")
-    print(f"level 4 -> {spell.get_damage_roll(4)}")
-    print(f"level 5 -> {spell.get_damage_roll(5)}")
-    print(f"level 6 -> {spell.get_damage_roll(6)}")
+    spell = Spell(
+        name="Inflict Wounds",
+        starting_level=1,
+        starting_damage_diceroll="3d10",
+        damage_increment_diceroll="1d10",
+        num_levels_per_damage_increase=1,
+        is_saving_throw=False
+    )
 
-    print(spell.level_increases)
-    # spell.plot_damage(colormap=plt.cm.YlOrRd)
+    spell2 = Spell(
+        name="My Hardcoded Spell",
+        hardcoded_level_to_diceroll={
+            1: "2d6",
+            5: "3d6",
+            9: "4d6",
+            10: "5d6",
+        }
+    )
 
-    x = spell.get_damage_distribution(1, enemy_ac=10, player_modifier=2)
-    print(x)
-    # plot x
-    fig, ax = plt.subplots(figsize=(7, 5))
-    x_values = list(x.keys())
-    y_values = [value * 100 for value in list(x.values())]  # Convert to percentage
-    ax.bar(x_values, y_values, color='blue', alpha=0.7, edgecolor='black')
-    ax.set_xlabel('Damage Outcome')
-    ax.set_ylabel('% Occurrence')
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter())  # Converts axis labels to percentages
-    ax.set_title('Damage Distribution for Fireball at Level 1')
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.show()
+    spell2.plot_damage(max_level=10, x_tick_interval=1, show=True)
