@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.gridspec as gridspec
 import matplotlib.ticker as mtick  
+import matplotlib.colors as mcolors
 import seaborn as sns
 
 
@@ -289,24 +290,34 @@ class Spell:
 
         positions = np.arange(len(levels), 0, -1)
 
-        # KDE overlays first (zorder=1)
-        for samples, y_pos, color in zip(data, positions, box_colors):
-            sns.kdeplot(
-                samples,
-                ax=ax_plot,
-                bw_adjust=1,
-                fill=True,
-                linewidth=1,
-                alpha=0.5,
+        # Barplot overlays first (zorder=1)
+        for dice_roll, y_pos, color in zip(level_to_damage_roll.values(), positions, box_colors):
+            pdf = dice_roll.pdf
+            x_vals = np.array(list(pdf.keys()))
+            y_vals = np.array(list(pdf.values()))
+
+            # Scale the height like KDE
+            y_vals_scaled = y_vals / y_vals.max() * 0.3
+
+            # Compute darker edge color (5:1 blend with black)
+            rgba = np.array(mcolors.to_rgba(color, alpha=1.0))
+            blended_rgb = (5 * rgba[:3] + np.array([0, 0, 0])) / 6
+            darker_color = tuple(blended_rgb.tolist() + [1.0])
+
+            # Plot filled bars (zorder 1)
+            bars = ax_plot.bar(
+                x_vals,
+                y_vals_scaled,
+                width=1,
                 color=color,
-                clip=(min(samples), max(samples)),
+                alpha=0.4,
                 zorder=1,
+                align='center',
+                edgecolor=darker_color
             )
-            # Shift KDE vertically to align with y_pos
-            for coll in ax_plot.collections[-1:]:  # only last KDE
-                path = coll.get_paths()[0]
-                vertices = path.vertices
-                vertices[:, 1] = y_pos + vertices[:, 1] / np.max(vertices[:, 1]) * 0.3  # scale + align vertically
+            for bar in bars:
+                bar.set_y(y_pos)
+
 
         # Boxplot layer (zorder=3)
         boxplots = ax_plot.boxplot(
@@ -347,18 +358,23 @@ class Spell:
                 np.percentile(samples, 100),
             ]
 
+            shown_x = []
+            min_separation = 1.0  # Adjust as needed (in outcome units)
+
             for x in summary_points:
-                ax_plot.text(
-                    x,
-                    y_pos + 0.35,
-                    f"{x:.1f}".rstrip("0").rstrip("."),
-                    ha="center",
-                    va="bottom",
-                    fontsize=9,
-                    color='black',
-                    bbox=dict(boxstyle='round,pad=0.15', facecolor=color, edgecolor='none', alpha=0.3),
-                    zorder=5
-                )
+                if all(abs(x - prev) > min_separation for prev in shown_x):
+                    ax_plot.text(
+                        x,
+                        y_pos + 0.35,
+                        f"{x:.1f}".rstrip("0").rstrip("."),
+                        ha="center",
+                        va="bottom",
+                        fontsize=9,
+                        color='black',
+                        bbox=dict(boxstyle='round,pad=0.15', facecolor=color, edgecolor='none', alpha=0.3),
+                        zorder=5
+                    )
+                    shown_x.append(x)
 
 
         # Axis + styling
@@ -386,26 +402,16 @@ if __name__ == '__main__':
     # Spell save DC = 8 + your proficiency bonus + your Wisdom modifier 
     # Spell attack modifier = your proficiency bonus + your Wisdom modifier
 
-    spell = Spell(
-        name="Inflict Wounds",
+    healing_word = Spell(
+        name="Healing Word",
         starting_level=1,
-        starting_damage_diceroll="3d10",
-        damage_increment_diceroll="1d10",
+        starting_damage_diceroll="1d4+5",
+        damage_increment_diceroll="1d4",
         num_levels_per_damage_increase=1,
-        is_saving_throw=False
+        is_saving_throw=False,
+        is_healing=True
     )
 
-    
+    healing_word.boxplot_damage(colormap=plt.cm.Reds, show=True)
 
-    spell2 = Spell(
-        name="My Hardcoded Spell",
-        hardcoded_level_to_diceroll={
-            1: "2d6",
-            5: "3d6",
-            9: "4d6"
-        }
-    )
-
-    # spell2.plot_damage(max_level=10, x_tick_interval=1, show=True)
-    spell.boxplot_damage(show=True)
 
