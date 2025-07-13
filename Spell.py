@@ -3,11 +3,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.gridspec as gridspec
 import matplotlib.ticker as mtick  
+import seaborn as sns
+
+
 MAX_SPELL_LEVEL = 9
 
 class Spell:
-    def __init__(self, name, starting_level=None, starting_damage_diceroll=None, damage_increment_diceroll=None, num_levels_per_damage_increase=None, hardcoded_level_to_diceroll=None, is_saving_throw=False):
+    def __init__(self, name, starting_level=None, starting_damage_diceroll=None, damage_increment_diceroll=None, num_levels_per_damage_increase=None, hardcoded_level_to_diceroll=None, is_saving_throw=False, is_healing=False):
         self.name = name
+        self.is_healing = is_healing
         self.starting_damage_diceroll = self.coerce_to_dice_prompt_type(starting_damage_diceroll)
         self.damage_increase_per_level = self.coerce_to_dice_prompt_type(damage_increment_diceroll)
         self.is_hardcoded = hardcoded_level_to_diceroll is not None
@@ -147,10 +151,8 @@ class Spell:
         all_outcomes = set(hit_damage_pdf.keys()).union(set(crit_damage_pdf.keys())).union(set(miss_damage_pdf.keys()))
         pdf = {outcome: 0 for outcome in all_outcomes}
 
-
         # add all the probabilities with matching keys, being mindfil that keys may be missing from some distributions
         for outcome in all_outcomes:
-
             pdf[outcome] = (hit_damage_pdf.get(outcome, 0)*chance_to_hit + 
                             crit_damage_pdf.get(outcome, 0)*chance_to_crit + 
                             miss_damage_pdf.get(outcome, 0)*chance_to_miss)
@@ -219,7 +221,7 @@ class Spell:
                     )
 
 
-    
+
         ax_plot.yaxis.set_major_formatter(mtick.PercentFormatter())  # Converts axis labels to percentages
         ax_plot.spines["top"].set_visible(False)    
         ax_plot.spines["right"].set_visible(False)  
@@ -247,6 +249,138 @@ class Spell:
         if show:
             plt.show()
 
+    def boxplot_damage(self, max_level=MAX_SPELL_LEVEL, colormap=plt.cm.plasma, show=False):
+
+        sns.set_style("white")
+
+        level_to_damage_roll = {
+            level: self.get_damage_roll(level)
+            for level in self.level_increases
+            if level <= max_level
+        }
+        levels = sorted(level_to_damage_roll.keys())
+
+        fig = plt.figure(figsize=(7, 5))
+        gs = gridspec.GridSpec(2, 1, height_ratios=[0.2, 1])
+        ax_title = fig.add_subplot(gs[0])
+        ax_plot = fig.add_subplot(gs[1])
+
+        # Title
+        title = r"$\bf{" + self.name.replace(" ", r"\ ") + r"}$"
+        title += "\nHealing Distribution" if getattr(self, 'is_healing', False) else "\nDamage Distribution"
+        ax_title.text(0, 0.5, title, fontsize=16, ha='left', va='center', wrap=True)
+
+        data = []
+        box_colors = []
+        for level in levels:
+            dice_roll = level_to_damage_roll[level]
+            pdf = dice_roll.pdf
+
+            samples = []
+            for value, prob in pdf.items():
+                count = max(1, int(prob * 10000))  # ensures every value appears at least once
+                samples.extend([value] * count)
+
+            data.append(samples)
+
+            idx = levels.index(level)
+            color = colormap(idx / (len(levels) - 1) if len(levels) > 1 else 0.5)
+            box_colors.append(color)
+
+        positions = np.arange(len(levels), 0, -1)
+
+        # KDE overlays first (zorder=1)
+        for samples, y_pos, color in zip(data, positions, box_colors):
+            sns.kdeplot(
+                samples,
+                ax=ax_plot,
+                bw_adjust=1,
+                fill=True,
+                linewidth=1,
+                alpha=0.5,
+                color=color,
+                clip=(min(samples), max(samples)),
+                zorder=1,
+            )
+            # Shift KDE vertically to align with y_pos
+            for coll in ax_plot.collections[-1:]:  # only last KDE
+                path = coll.get_paths()[0]
+                vertices = path.vertices
+                vertices[:, 1] = y_pos + vertices[:, 1] / np.max(vertices[:, 1]) * 0.3  # scale + align vertically
+
+        # Boxplot layer (zorder=3)
+        boxplots = ax_plot.boxplot(
+            data,
+            vert=False,
+            positions=positions,
+            patch_artist=True,
+            widths=0.3,
+            boxprops=dict(color='black'),
+            whiskerprops=dict(color='black'),
+            capprops=dict(color='black'),
+            medianprops=dict(color='black'),
+            showfliers=False,  
+            whis=[5, 95],       # whiskers from 5th to 95th percentile
+        )
+
+        for patch in boxplots['boxes']:
+            patch.set_facecolor((0, 0, 0, 0))  # Fully transparent
+            patch.set_edgecolor('black')      # Solid black outline
+
+        # Y-axis labels
+        ax_plot.set_yticks(positions)
+        ax_plot.set_yticklabels([f"Level {level}" for level in levels])
+
+        # Annotate 7-number summary: min, 5%, Q1, median, Q3, 95%, max
+        for i, level in enumerate(levels):
+            samples = sorted(data[i])
+            y_pos = positions[i]
+            color = box_colors[i]
+
+            summary_points = [
+                np.percentile(samples, 0),
+                np.percentile(samples, 5),
+                np.percentile(samples, 25),
+                np.percentile(samples, 50),
+                np.percentile(samples, 75),
+                np.percentile(samples, 95),
+                np.percentile(samples, 100),
+            ]
+
+            for x in summary_points:
+                ax_plot.text(
+                    x,
+                    y_pos + 0.35,
+                    f"{x:.1f}".rstrip("0").rstrip("."),
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
+                    color='black',
+                    bbox=dict(boxstyle='round,pad=0.15', facecolor=color, edgecolor='none', alpha=0.3),
+                    zorder=5
+                )
+
+
+        # Axis + styling
+        ax_plot.set_xlabel("Healing Outcome" if getattr(self, 'is_healing', False) else "Damage Outcome")
+        ax_plot.grid(axis='x', linestyle='--', alpha=0.3)
+        ax_plot.spines["top"].set_visible(False)
+        ax_plot.spines["right"].set_visible(False)
+        ax_plot.set_ylabel("Spell Level")
+
+        ax_title.set_xticks([])
+        ax_title.set_yticks([])
+        for spine in ax_title.spines.values():
+            spine.set_visible(False)
+
+        plt.tight_layout()
+        if show:
+            plt.show()
+
+        return fig, ax_plot
+
+
+            
 if __name__ == '__main__':
 
     # Spell save DC = 8 + your proficiency bonus + your Wisdom modifier 
@@ -261,14 +395,17 @@ if __name__ == '__main__':
         is_saving_throw=False
     )
 
+    
+
     spell2 = Spell(
         name="My Hardcoded Spell",
         hardcoded_level_to_diceroll={
             1: "2d6",
             5: "3d6",
-            9: "4d6",
-            10: "5d6",
+            9: "4d6"
         }
     )
 
-    spell2.plot_damage(max_level=10, x_tick_interval=1, show=True)
+    # spell2.plot_damage(max_level=10, x_tick_interval=1, show=True)
+    spell.boxplot_damage(show=True)
+
