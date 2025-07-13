@@ -96,27 +96,24 @@ class Spell:
         
     def get_level_increases(self):
         """
-        return a list of levels where the spell sees an increased damage roll. 
-        eg for a spell that starts at level 1 with a damage roll of 2d6, and increases to 3d6 at level 5, this would return [1, 5]
+        Return a list of levels where the spell sees an increased damage roll.
         """
         if self.is_hardcoded:
             starting_level = min(self.level_to_diceroll.keys())
             level_increases = [starting_level]
             previous_diceroll = self.level_to_diceroll[starting_level]
-            for level, diceroll in self.level_to_diceroll.items():
-                if diceroll != previous_diceroll:
+            for level in sorted(self.level_to_diceroll.keys()):
+                if self.level_to_diceroll[level] != previous_diceroll:
                     level_increases.append(level)
-                    previous_diceroll = diceroll
+                    previous_diceroll = self.level_to_diceroll[level]
             return level_increases
-        else:
-            level_increases = [self.starting_level]
-            previous_diceroll = self.starting_damage_diceroll
-            for level in range(self.starting_level + 1, MAX_SPELL_LEVEL + 1):
-                current_diceroll = self.get_damage_roll(level)
-                if current_diceroll != previous_diceroll:
-                    level_increases.append(level)
-                    previous_diceroll = current_diceroll
-            return level_increases
+
+        level_increases = []
+        for level in range(self.starting_level, MAX_SPELL_LEVEL + 1):
+            # Only add levels where the spell actually increases
+            if (level - self.starting_level) % self.num_levels_per_damage_increase == 0:
+                level_increases.append(level)
+        return level_increases
 
     def get_damage_distribution(self, level, enemy_ac, player_modifier):
         """ determines the probability of each possible damage outcome, inclusive of misses and critical hits"""
