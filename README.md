@@ -8,3 +8,9 @@ This project calculates the probability distribution of dice rolls and visualize
 - Plot the distribution with a marked mean value for better understanding.
 
 This project was inspired by a video by 3Blue1Brown on the convolution of discrete probability densities. You can watch the video here: [3Blue1Brown - Convolution](https://www.youtube.com/watch?v=IaSGqQa5O-M&ab_channel=3Blue1Brown).
+
+## Spell Class
+
+Makes use of the `DicePrompt` class and its methods to create plots for 2024 DND spells. Below are two examples:
+
+![Healing Word Probability Distribution](docs/healing_word.png) ![Inflict Wounds Probability Distribution](docs/inflict_wounds.png)
