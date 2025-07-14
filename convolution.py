@@ -49,7 +49,7 @@ def benchmark_convolution_implementations():
     my_input_length_to_compute_time = {}
     numpy_input_length_to_compute_time = {}
     fft_input_length_to_compute_time = {}
-    input_lengths = range(10, 100, 20)  # Adjust the step size for faster computation
+    input_lengths = range(10, 200, 20)  # Adjust the step size for faster computation
 
     for input_length in input_lengths:
         np.random.seed(0)  # Set seed for reproducibility

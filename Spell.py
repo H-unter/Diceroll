@@ -157,7 +157,11 @@ class Spell:
 
         return pdf
 
-    def plot_damage(self, max_level=MAX_SPELL_LEVEL, x_tick_interval=None, colormap = plt.cm.plasma, show=False):
+    def plot_damage(self, max_level=None, x_tick_interval=None, colormap = plt.cm.plasma, show=False):
+
+        if max_level is None:
+            max_level = max(self.level_to_diceroll.keys())
+
         level_to_damage_roll = {level: self.get_damage_roll(level) for level in self.level_increases if level <= max_level}
 
         fig = plt.figure(figsize=(7, 5))  # Adjusted figure size
@@ -247,10 +251,11 @@ class Spell:
         if show:
             plt.show()
 
-    def boxplot_damage(self, max_level=MAX_SPELL_LEVEL, colormap=plt.cm.plasma, show=False):
+    def boxplot_damage(self, max_level=None, colormap=plt.cm.plasma, show=False):
 
         sns.set_style("white")
-
+        if max_level is None:
+            max_level = max(self.level_to_diceroll.keys())
         level_to_damage_roll = {
             level: self.get_damage_roll(level)
             for level in self.level_increases
@@ -379,7 +384,6 @@ class Spell:
         ax_plot.grid(axis='x', linestyle='--', alpha=0.3)
         ax_plot.spines["top"].set_visible(False)
         ax_plot.spines["right"].set_visible(False)
-        ax_plot.set_ylabel("Spell Level")
 
         ax_title.set_xticks([])
         ax_title.set_yticks([])
